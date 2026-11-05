@@ -6,6 +6,7 @@ import { init, one } from "./db.js";
 import { createApp, attachSockets } from "./app.js";
 import { startScheduler } from "./scheduler.js";
 import { seedDemo } from "./seed.js";
+import { recordFirstSeed, resetIfOverdue, scheduleNightlyReset } from "./demoReset.js";
 import { startSimulator } from "./simulator.js";
 
 const PORT = Number(process.env.PORT || 8130);
@@ -22,7 +23,10 @@ init(process.env.DB_PATH || path.join(DATA_DIR, "bidora.db"));
 
 if (!one("SELECT 1 AS x FROM users LIMIT 1")) {
   const r = seedDemo({ adminPassword: process.env.ADMIN_PASSWORD || null });
+  recordFirstSeed();
   console.log("seeded demo data", r);
+} else if (process.env.NIGHTLY_RESET !== "0") {
+  if (resetIfOverdue()) console.log("demo data reset (server was off at reset time)");
 }
 
 const server = http.createServer(createApp());
@@ -30,22 +34,7 @@ attachSockets(server);
 startScheduler(1000);
 if (process.env.SIMULATE !== "0") startSimulator();
 
-// The public demo starts from fresh sample data every night (UTC).
-if (process.env.NIGHTLY_RESET !== "0") {
-  const schedule = () => {
-    const t = new Date();
-    const next = Date.UTC(t.getUTCFullYear(), t.getUTCMonth(), t.getUTCDate() + 1, 0, 10);
-    setTimeout(() => {
-      try {
-        seedDemo({ adminPassword: process.env.ADMIN_PASSWORD || null });
-        console.log("demo data reset");
-      } catch (e) {
-        console.error("reset failed", e);
-      }
-      schedule();
-    }, next - Date.now()).unref();
-  };
-  schedule();
-}
+// The public demo returns to its starting state every night at 00:10 UTC.
+if (process.env.NIGHTLY_RESET !== "0") scheduleNightlyReset();
 
 server.listen(PORT, () => console.log(`Bidora listening on :${PORT}`));

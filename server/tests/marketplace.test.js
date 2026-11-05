@@ -8,6 +8,7 @@ import { requestDeposit, reviewDeposit } from "../src/wallet.js";
 import * as O from "../src/orders.js";
 import { tick } from "../src/scheduler.js";
 import { seedDemo } from "../src/seed.js";
+import { msUntilNextReset } from "../src/demoReset.js";
 
 let admin, seller, alice, bob, cat;
 const hash = hashPassword("secret123");
@@ -303,5 +304,54 @@ describe("demo data", () => {
     }
     assert.ok(one("SELECT COUNT(*) AS n FROM auctions WHERE status = 'live'").n >= 15);
     assert.equal(one("SELECT COUNT(*) AS n FROM auctions a WHERE a.bid_count != (SELECT COUNT(*) FROM bids b WHERE b.auction_id = a.id)").n, 0);
+  });
+});
+
+describe("nightly demo reset", () => {
+  test("whatever visitors did, the next reset restores the starting state", () => {
+    seedDemo({});
+    const count = (sql) => one(sql).n;
+    const baseline = {
+      users: count("SELECT COUNT(*) AS n FROM users"),
+      auctions: count("SELECT COUNT(*) AS n FROM auctions"),
+      orders: count("SELECT COUNT(*) AS n FROM orders"),
+      live: count("SELECT COUNT(*) AS n FROM auctions WHERE status = 'live'"),
+    };
+    // a visitor changes things
+    setSetting("commission_pct", 25);
+    setSetting("min_deposit_cents", 49000);
+    run("INSERT INTO users(email, name, password_hash, role, email_verified, created_at) VALUES('visitor@x.dev','Visitor','x','buyer',1,1)");
+    run("UPDATE users SET status = 'suspended', wallet_cents = 999999, password_hash = 'changed' WHERE email = 'buyer@bidora.demo'");
+    run("DELETE FROM bids WHERE id % 2 = 0");
+    run("UPDATE auctions SET status = 'removed' WHERE id % 3 = 0");
+    run("INSERT INTO categories(name, slug, icon) VALUES('Spam','spam','tag')");
+    run("DELETE FROM transactions");
+    // the reset
+    seedDemo({});
+    assert.equal(settings().commission_pct, 10);
+    assert.equal(settings().min_deposit_cents, 5000);
+    assert.deepEqual(
+      {
+        users: count("SELECT COUNT(*) AS n FROM users"),
+        auctions: count("SELECT COUNT(*) AS n FROM auctions"),
+        orders: count("SELECT COUNT(*) AS n FROM orders"),
+        live: count("SELECT COUNT(*) AS n FROM auctions WHERE status = 'live'"),
+      },
+      baseline,
+    );
+    const demo = one("SELECT status, wallet_cents, password_hash FROM users WHERE email = 'buyer@bidora.demo'");
+    assert.equal(demo.status, "active");
+    assert.ok(demo.wallet_cents > 0 && demo.wallet_cents < 999999);
+    assert.notEqual(demo.password_hash, "changed");
+    assert.equal(count("SELECT COUNT(*) AS n FROM users WHERE email = 'visitor@x.dev'"), 0);
+    assert.equal(count("SELECT COUNT(*) AS n FROM categories WHERE slug = 'spam'"), 0);
+    assert.ok(count("SELECT COUNT(*) AS n FROM transactions") > 100);
+  });
+
+  test("the reset is scheduled for 00:10 UTC", () => {
+    const at = (iso) => msUntilNextReset(new Date(iso));
+    assert.equal(at("2026-11-05T00:00:00Z"), 10 * 60_000);
+    assert.equal(at("2026-11-05T00:10:00Z"), 24 * 3_600_000);
+    assert.equal(at("2026-11-05T23:50:00Z"), 20 * 60_000);
   });
 });

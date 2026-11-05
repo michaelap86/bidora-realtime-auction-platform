@@ -70,7 +70,9 @@ export default function Auctions() {
     for (const [k, v] of Object.entries(patch)) (v == null || v === "" ? n.delete(k) : n.set(k, v));
     setP(n, { replace: true });
   };
-  useEffect(() => setQ(p.get("q") ?? ""), [p.get("q")]);
+  useEffect(() => {
+    setQ(p.get("q") ?? "");
+  }, [p.get("q")]);
 
   useEffect(() => {
     let alive = true;

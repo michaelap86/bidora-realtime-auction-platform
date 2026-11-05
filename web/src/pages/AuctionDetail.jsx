@@ -14,7 +14,9 @@ import { Modal, Skeleton, Spinner, Status, Tabs, cx } from "../components/ui";
 function Gallery({ images, title }) {
   const [i, setI] = useState(0);
   const [zoom, setZoom] = useState(false);
-  useEffect(() => setI(0), [images[0]]);
+  useEffect(() => {
+    setI(0);
+  }, [images[0]]);
   const go = (d) => setI((x) => (x + d + images.length) % images.length);
   return (
     <div>

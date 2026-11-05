@@ -22,7 +22,9 @@ export function startLive() {
 }
 
 export function useLive(id) {
-  useEffect(startLive, []);
+  useEffect(() => {
+    startLive();
+  }, []);
   return useSyncExternalStore(
     (cb) => {
       subs.add(cb);

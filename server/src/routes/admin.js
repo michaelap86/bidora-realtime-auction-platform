@@ -1,7 +1,7 @@
 import { Router } from "express";
 import { z } from "zod";
 import { one, all, run } from "../db.js";
-import { DAY, HOUR, bad, notFound, now, settings, setSetting, DEFAULTS, logActivity, TEMPLATES, notify, resetSettingsCache } from "../core.js";
+import { DAY, HOUR, HttpError, bad, notFound, now, settings, setSetting, DEFAULTS, logActivity, TEMPLATES, notify, resetSettingsCache } from "../core.js";
 import { requireRole, publicUser } from "../auth.js";
 import { dto, getAuction, reviewListing, adminEditListing, bidHistory, alias } from "../auctions.js";
 import { reviewDeposit } from "../wallet.js";
@@ -213,11 +213,13 @@ router.post("/users/:id/status", wrap((req, res) => {
   const { status } = parse(z.object({ status: z.enum(["active", "suspended"]) }), req.body);
   const u = one("SELECT * FROM users WHERE id = ?", Number(req.params.id));
   if (!u || u.role === "admin") throw notFound("User not found.");
+  if (u.is_demo) throw new HttpError(403, "The demo accounts cannot be suspended, so the next visitor can still sign in.");
   run("UPDATE users SET status = ? WHERE id = ?", status, u.id);
   logActivity(req.user, `user.${status === "suspended" ? "suspend" : "reactivate"}`, "user", u.id);
   res.json({ ok: true });
 }));
 router.post("/users/:id/restrict", wrap((req, res) => {
+  if (one("SELECT is_demo FROM users WHERE id = ?", Number(req.params.id))?.is_demo) throw new HttpError(403, "The demo accounts cannot be restricted, so the next visitor can still bid.");
   const b = parse(z.object({ days: z.number().int().min(1).max(365), reason: z.string().trim().min(3).max(300) }), req.body);
   O.addRestriction(req.user, Number(req.params.id), b.days, b.reason);
   res.json({ ok: true });
@@ -378,6 +380,9 @@ router.put("/settings", wrap((req, res) => {
     auto_approve_sandbox_deposits: z.number().int().min(0).max(1).optional(),
     reminder_hours: z.number().int().min(1).max(72).optional(),
   }), req.body);
+  if (req.user.is_demo && ((b.min_deposit_cents ?? 0) > 50_000 || (b.commission_pct ?? 0) > 25 || (b.payment_window_days ?? 0) > 7 || (b.anti_snipe_extension_sec ?? 0) > 600)) {
+    throw new HttpError(400, "In the public demo the settings are kept in a sensible range (deposit up to $500, commission up to 25%, payment window up to 7 days).");
+  }
   for (const [k, v] of Object.entries(b)) setSetting(k, v);
   logActivity(req.user, "settings.update", "settings", null, b, ip(req));
   res.json({ settings: settings() });

@@ -70,7 +70,9 @@ export default function AdminApp() {
     s.on("admin:queue", fn);
     return () => s.off("admin:queue", fn);
   }, []);
-  useEffect(() => setOpen(false), [loc.pathname]);
+  useEffect(() => {
+    setOpen(false);
+  }, [loc.pathname]);
   useEffect(() => {
     const h = (e) => ref.current && !ref.current.contains(e.target) && setMenu(false);
     document.addEventListener("mousedown", h);

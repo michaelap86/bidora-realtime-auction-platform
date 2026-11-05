@@ -133,7 +133,9 @@ export function Navbar() {
   const [menu, setMenu] = useState(false);
   const nav = useNavigate();
   const loc = useLocation();
-  useEffect(() => setMenu(false), [loc.pathname]);
+  useEffect(() => {
+    setMenu(false);
+  }, [loc.pathname]);
   const submit = (e) => {
     e.preventDefault();
     nav(`/auctions?q=${encodeURIComponent(q)}`);
@@ -233,7 +235,9 @@ export function Footer() {
 
 export function PublicLayout() {
   const loc = useLocation();
-  useEffect(() => window.scrollTo({ top: 0 }), [loc.pathname]);
+  useEffect(() => {
+    window.scrollTo({ top: 0 });
+  }, [loc.pathname]);
   return (
     <div className="flex min-h-screen flex-col">
       <DemoStrip />

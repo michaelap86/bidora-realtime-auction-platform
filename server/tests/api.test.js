@@ -146,3 +146,18 @@ describe("customer flows over the API", () => {
     assert.ok(res.status >= 400);
   });
 });
+
+describe("demo accounts stay usable", () => {
+  test("a visitor with the demo admin cannot lock out the demo buyer or push extreme rules", async () => {
+    const admin = new Client();
+    await admin.login("admin@bidora.demo");
+    const users = (await admin.get("/api/admin/users?q=buyer@bidora.demo")).data.items;
+    const demo = users.find((u) => u.email === "buyer@bidora.demo");
+    assert.equal((await admin.post(`/api/admin/users/${demo.id}/status`, { status: "suspended" })).status, 403);
+    assert.equal((await admin.post(`/api/admin/users/${demo.id}/restrict`, { days: 30, reason: "test" })).status, 403);
+    const res = await admin.call("PUT", "/api/admin/settings", { min_deposit_cents: 4_000_000 });
+    assert.equal(res.status, 400);
+    const ok = await new Client().login("buyer@bidora.demo");
+    assert.equal(ok.role, "buyer");
+  });
+});
