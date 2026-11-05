@@ -1,0 +1,7 @@
+**/node_modules
+.git
+data
+docs
+*.db
+server/public/assets
+server/public/index.html

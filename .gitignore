@@ -1,0 +1,12 @@
+node_modules/
+dist/
+data/
+*.db
+*.db-wal
+*.db-shm
+.env
+.idea/
+.vscode/
+# web build output (the Docker image builds it)
+server/public/assets/
+server/public/index.html
